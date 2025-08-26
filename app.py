@@ -6,6 +6,7 @@ import threading
 
 app = Flask(__name__)
 
+# ===================== Индикатори =====================
 def compute_indicators(data):
     data["EMA5"] = data["Close"].ewm(span=5, adjust=False).mean()
     data["EMA20"] = data["Close"].ewm(span=20, adjust=False).mean()
@@ -29,6 +30,8 @@ def compute_indicators(data):
     data["ATR"] = tr.rolling(14).mean()
     return data
 
+
+# ===================== Настройки =====================
 ASSETS = {
     "EUR/USD": "EURUSD=X",
     "GBP/USD": "GBPUSD=X",
@@ -45,6 +48,8 @@ pending_signal = None
 pending_timer = None
 pending_expire_time = None
 
+
+# ===================== Сигнали =====================
 def get_signal(symbol):
     data = yf.download(symbol, interval="1m", period="1d")
     if len(data) < 30:
@@ -66,6 +71,7 @@ def get_signal(symbol):
         signal = "SELL"
     return signal, data
 
+
 def trigger_signal_execution(signal):
     global last_signal, signal_history, pending_signal, pending_timer, pending_expire_time
     last_signal = signal
@@ -74,6 +80,8 @@ def trigger_signal_execution(signal):
     pending_timer = None
     pending_expire_time = None
 
+
+# ===================== API =====================
 @app.route("/api/signal")
 def api_signal():
     global last_signal, signal_history, current_asset, pending_signal, pending_timer, pending_expire_time
@@ -95,6 +103,7 @@ def api_signal():
 
     return jsonify({
         "asset": asset,
+        "assets": list(ASSETS.keys()),
         "signal": pending_signal if pending_signal else (last_signal if last_signal else "NONE"),
         "history": signal_history[:10],
         "countdown": countdown,
@@ -110,9 +119,11 @@ def api_signal():
         }
     })
 
+
 @app.route("/")
 def dashboard():
-    return render_template("index.html", assets=list(ASSETS.keys()))
+    return render_template("index.html")
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

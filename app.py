@@ -3,6 +3,7 @@ import yfinance as yf
 import pandas as pd
 import datetime
 import threading
+from collections import defaultdict, deque
 
 app = Flask(__name__)
 
@@ -41,10 +42,11 @@ ASSETS = {
 }
 
 current_asset = "EUR/USD"
-last_signal = None
-signal_history = []
+last_signal = {a: None for a in ASSETS}
+signal_history = {a: deque(maxlen=20) for a in ASSETS}
 
 pending_signal = None
+pending_asset = None
 pending_timer = None
 pending_expire_time = None
 
@@ -72,11 +74,12 @@ def get_signal(symbol):
     return signal, data
 
 
-def trigger_signal_execution(signal):
-    global last_signal, signal_history, pending_signal, pending_timer, pending_expire_time
-    last_signal = signal
-    signal_history.insert(0, f"{datetime.datetime.now().strftime('%H:%M:%S')} - EXECUTED {signal}")
+def trigger_signal_execution(asset, signal):
+    global last_signal, signal_history, pending_signal, pending_timer, pending_expire_time, pending_asset
+    last_signal[asset] = signal
+    signal_history[asset].appendleft(f"{datetime.datetime.now().strftime('%H:%M:%S')} - EXECUTED {signal}")
     pending_signal = None
+    pending_asset = None
     pending_timer = None
     pending_expire_time = None
 
@@ -84,28 +87,30 @@ def trigger_signal_execution(signal):
 # ===================== API =====================
 @app.route("/api/signal")
 def api_signal():
-    global last_signal, signal_history, current_asset, pending_signal, pending_timer, pending_expire_time
+    global current_asset, pending_signal, pending_asset, pending_timer, pending_expire_time
     asset = request.args.get("asset", current_asset)
     current_asset = asset
 
     signal, data = get_signal(ASSETS[asset])
 
-    if signal and signal != last_signal and not pending_signal:
+    if signal and signal != last_signal[asset] and not pending_signal:
         pending_signal = signal
-        signal_history.insert(0, f"{datetime.datetime.now().strftime('%H:%M:%S')} - UPCOMING {signal} (20s)")
+        pending_asset = asset
+        signal_history[asset].appendleft(f"{datetime.datetime.now().strftime('%H:%M:%S')} - UPCOMING {signal} (20s)")
         pending_expire_time = datetime.datetime.now() + datetime.timedelta(seconds=20)
-        pending_timer = threading.Timer(20, trigger_signal_execution, args=[signal])
+        pending_timer = threading.Timer(20, trigger_signal_execution, args=[asset, signal])
         pending_timer.start()
 
     countdown = None
-    if pending_expire_time:
+    if pending_expire_time and pending_asset == asset:
         countdown = max(0, int((pending_expire_time - datetime.datetime.now()).total_seconds()))
 
     return jsonify({
         "asset": asset,
         "assets": list(ASSETS.keys()),
-        "signal": pending_signal if pending_signal else (last_signal if last_signal else "NONE"),
-        "history": signal_history[:10],
+        "signal": pending_signal if (pending_signal and pending_asset == asset) else (last_signal[asset] if last_signal[asset] else "NONE"),
+        "history": list(signal_history[asset]),
+        "all_signals": {a: list(h) for a, h in signal_history.items()},
         "countdown": countdown,
         "chart": {
             "labels": [str(i) for i in data.index[-50:]],

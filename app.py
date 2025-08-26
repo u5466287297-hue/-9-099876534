@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import datetime
 import threading
-from collections import defaultdict, deque
+from collections import deque
 
 app = Flask(__name__)
 
@@ -54,8 +54,13 @@ pending_expire_time = None
 # ===================== Сигнали =====================
 def get_signal(symbol):
     data = yf.download(symbol, interval="1m", period="1d")
-    if len(data) < 30:
-        return None, data
+
+    # ако няма данни → връщаме празна рамка
+    if data.empty or len(data) < 30:
+        return None, pd.DataFrame({
+            "Close": [], "EMA5": [], "EMA20": [],
+            "RSI": [], "MACD": [], "MACD_Signal": [], "ATR": []
+        })
 
     data = compute_indicators(data)
 
@@ -103,32 +108,4 @@ def api_signal():
 
     countdown = None
     if pending_expire_time and pending_asset == asset:
-        countdown = max(0, int((pending_expire_time - datetime.datetime.now()).total_seconds()))
-
-    return jsonify({
-        "asset": asset,
-        "assets": list(ASSETS.keys()),
-        "signal": pending_signal if (pending_signal and pending_asset == asset) else (last_signal[asset] if last_signal[asset] else "NONE"),
-        "history": list(signal_history[asset]),
-        "all_signals": {a: list(h) for a, h in signal_history.items()},
-        "countdown": countdown,
-        "chart": {
-            "labels": [str(i) for i in data.index[-50:]],
-            "close": list(data["Close"].iloc[-50:]),
-            "ema5": list(data["EMA5"].iloc[-50:]),
-            "ema20": list(data["EMA20"].iloc[-50:]),
-            "rsi": list(data["RSI"].iloc[-50:]),
-            "macd": list(data["MACD"].iloc[-50:]),
-            "macd_signal": list(data["MACD_Signal"].iloc[-50:]),
-            "atr": list(data["ATR"].iloc[-50:])
-        }
-    })
-
-
-@app.route("/")
-def dashboard():
-    return render_template("index.html")
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+        countdown = max(0, int((pending_expire_time - datetime.datetime.no

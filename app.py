@@ -108,4 +108,32 @@ def api_signal():
 
     countdown = None
     if pending_expire_time and pending_asset == asset:
-        countdown = max(0, int((pending_expire_time - datetime.datetime.no
+        countdown = max(0, int((pending_expire_time - datetime.datetime.now()).total_seconds()))
+
+    return jsonify({
+        "asset": asset,
+        "assets": list(ASSETS.keys()),
+        "signal": pending_signal if (pending_signal and pending_asset == asset) else (last_signal[asset] if last_signal[asset] else "NONE"),
+        "history": list(signal_history[asset]),
+        "all_signals": {a: list(h) for a, h in signal_history.items()},
+        "countdown": countdown,
+        "chart": {
+            "labels": [str(i) for i in data.index[-50:]] if not data.empty else [],
+            "close": list(data["Close"].iloc[-50:]) if not data.empty else [],
+            "ema5": list(data["EMA5"].iloc[-50:]) if not data.empty else [],
+            "ema20": list(data["EMA20"].iloc[-50:]) if not data.empty else [],
+            "rsi": list(data["RSI"].iloc[-50:]) if not data.empty else [],
+            "macd": list(data["MACD"].iloc[-50:]) if not data.empty else [],
+            "macd_signal": list(data["MACD_Signal"].iloc[-50:]) if not data.empty else [],
+            "atr": list(data["ATR"].iloc[-50:]) if not data.empty else []
+        }
+    })
+
+
+@app.route("/")
+def dashboard():
+    return render_template("index.html")
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)

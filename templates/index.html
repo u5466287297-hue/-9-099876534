@@ -90,7 +90,6 @@
 
             renderAssets(data.assets);
 
-            // Current signal
             const signalEl = document.getElementById("signal");
             signalEl.innerText = data.signal;
             signalEl.className = "signal " + data.signal;
@@ -101,7 +100,7 @@
                 document.getElementById("countdown").innerText = "";
             }
 
-            // All signals by asset
+            // All signals
             const allSignalsEl = document.getElementById("allSignals");
             allSignalsEl.innerHTML = "";
             Object.keys(data.all_signals).forEach(asset => {
@@ -120,7 +119,11 @@
                 allSignalsEl.appendChild(div);
             });
 
-            // Charts
+            // Ако няма данни за графика
+            if (!data.chart || data.chart.labels.length === 0) {
+                return;
+            }
+
             const labels = data.chart.labels;
             renderChart("priceChart", labels, [
                 { label: 'Close', data: data.chart.close, borderColor: '#0ff' },
@@ -160,7 +163,6 @@
             }
         }
 
-        // Refresh countdown
         setInterval(() => {
             refreshCounter--;
             document.getElementById("refreshTimer").innerText = "Next refresh in: " + refreshCounter + "s";
